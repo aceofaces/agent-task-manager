@@ -16,6 +16,10 @@
     "test:watch": "vitest watch",
     "audit": "pnpm audit --audit-level=high",
     "audit:fix": "pnpm audit --fix",
+    "check:circular": "madge --circular --extensions ts src/",
+    "check:unused": "ts-prune | grep -v '(used in module)' || echo 'No unused exports found'",
+    "check:api": "api-extractor run --local",
+    "check:all": "pnpm run check:circular && pnpm run check:unused && pnpm run check:api",
     "setup:discover-linear": "pnpm run build && node dist/setup/discover-linear.js",
     "setup:create-notion-dbs": "pnpm run build && node dist/setup/create-notion-dbs.js",
     "setup:generate-env": "pnpm run build && node dist/setup/generate-env.js --template --output=.env.template",
@@ -51,6 +55,7 @@
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^9.37.0",
+    "@microsoft/api-extractor": "^7.53.1",
     "@types/inquirer": "^9.0.9",
     "@types/node": "^24.8.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
@@ -60,6 +65,8 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
+    "madge": "^8.0.0",
+    "ts-prune": "^0.10.3",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

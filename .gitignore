@@ -14,3 +14,8 @@ test.err
 dev_docs/
 .mcp.json
 .memory/coverage
+
+# API Extractor
+temp/
+etc/*
+!etc/api-report.api.md
