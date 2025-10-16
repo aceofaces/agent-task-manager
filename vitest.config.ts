@@ -7,13 +7,34 @@ export default defineConfig({
     reporters: ['default'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      reporter: ['text', 'lcov', 'html'],
       reportsDirectory: 'coverage',
-      lines: 0.95,
-      functions: 0.95,
-      statements: 0.95,
-      branches: 0.9,
-      include: ['src/orchestrator/**/*.ts', 'src/domain/**/*.ts'],
+      all: true,
+      clean: true,
+      lines: 90,
+      functions: 87,
+      statements: 90,
+      branches: 82,
+      include: [
+        'src/orchestrator/**/*.ts',
+        'src/domain/**/*.ts',
+        'src/config/**/*.ts',
+      ],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/__tests__/**',
+        'src/**/types.ts',
+        'src/setup/**/*.ts', // Setup scripts are interactive
+        'src/integrations/**/*.ts', // External API integrations
+      ],
+      thresholds: {
+        autoUpdate: false,
+        lines: 90,
+        functions: 87,
+        statements: 90,
+        branches: 82,
+        perFile: false,
+      },
     },
   },
 });

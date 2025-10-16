@@ -13,4 +13,4 @@ test.err
 .pnpm-store
 dev_docs/
 .mcp.json
-.memory/
+.memory/coverage

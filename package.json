@@ -14,6 +14,8 @@
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
     "test": "vitest run --coverage",
     "test:watch": "vitest watch",
+    "audit": "pnpm audit --audit-level=high",
+    "audit:fix": "pnpm audit --fix",
     "setup:discover-linear": "pnpm run build && node dist/setup/discover-linear.js",
     "setup:create-notion-dbs": "pnpm run build && node dist/setup/create-notion-dbs.js",
     "setup:generate-env": "pnpm run build && node dist/setup/generate-env.js --template --output=.env.template",
@@ -24,7 +26,7 @@
     "setup": "pnpm run build && node dist/setup/setup-wizard.js",
     "prepare": "husky install",
     "verify:start": "node scripts/verify-start.mjs",
-    "precommit": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build && pnpm run verify:start"
+    "precommit": "pnpm run audit && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build && pnpm run verify:start"
   },
   "keywords": [
     "mcp",
@@ -46,6 +48,8 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^9.37.0",
     "@types/inquirer": "^9.0.9",
     "@types/node": "^24.8.0",
