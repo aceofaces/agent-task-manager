@@ -68,8 +68,8 @@ Resources: help://quickstart (start here), config://server, help://effort-calibr
 function loadConfig(): Config {
   const linearApiKey = process.env.LINEAR_API_KEY;
   const linearTeamId = process.env.LINEAR_TEAM_ID;
-  const storageBackendEnv = process.env.STORAGE_BACKEND || 'notion';
-  const storageBackend: 'notion' | 'basic-memory' = storageBackendEnv === 'basic-memory' ? 'basic-memory' : 'notion';
+  const storageBackendEnv = process.env.STORAGE_BACKEND || 'basic-memory';
+  const storageBackend: 'notion' | 'basic-memory' = storageBackendEnv === 'notion' ? 'notion' : 'basic-memory';
 
   if (!linearApiKey || !linearTeamId) {
     throw new Error(
@@ -136,12 +136,12 @@ function loadConfig(): Config {
       globalPath: basicMemoryGlobalPath,
     };
   } else {
-    // Notion backend (default)
+    // Notion backend
     const notionApiKey = process.env.NOTION_API_KEY;
 
     if (!notionApiKey) {
       throw new Error(
-        'NOTION_API_KEY is required when STORAGE_BACKEND is "notion"'
+        'NOTION_API_KEY is required when STORAGE_BACKEND is "notion". Set STORAGE_BACKEND=basic-memory to use local file storage instead.'
       );
     }
 

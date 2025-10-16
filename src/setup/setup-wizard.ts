@@ -24,6 +24,11 @@ interface WizardState {
   linearApiKey?: string;
   linearTeamId?: string;
   linearTeamName?: string;
+  storageBackend: 'basic-memory' | 'notion';
+  // Basic-memory fields
+  basicMemoryRootPath?: string;
+  basicMemoryGlobalPath?: string;
+  // Notion fields
   notionApiKey?: string;
   notionParentPageId?: string;
   selectedProjects: LinearProject[];
@@ -47,10 +52,12 @@ function displayWelcome() {
   console.log(chalk.bold.cyan('╚════════════════════════════════════════════════════════════╝\n'));
 
   console.log(chalk.white('This wizard will help you set up the Agent Task Manager MCP server.\n'));
-  console.log(chalk.white('Prerequisites:'));
+  console.log(chalk.white('Quick Start (recommended):'));
   console.log(chalk.gray('  ✓ Linear API key (from app.linear.app/settings/api)'));
-  console.log(chalk.gray('  ✓ Notion integration token (from notion.so/my-integrations)'));
-  console.log(chalk.gray('  ✓ Notion parent page (where databases will be created)\n'));
+  console.log(chalk.gray('  ✓ Local markdown files for knowledge storage (basic-memory)\n'));
+  console.log(chalk.white('Advanced Setup (optional):'));
+  console.log(chalk.gray('  • Notion integration for collaborative knowledge base'));
+  console.log(chalk.gray('  • Requires Notion token and parent page setup\n'));
 }
 
 /**
@@ -128,7 +135,8 @@ async function stepSelectTeam(teams: LinearTeam[]): Promise<LinearTeam> {
  */
 async function stepSelectProjects(
   projects: LinearProject[],
-  teamId: string
+  teamId: string,
+  storageBackend: 'basic-memory' | 'notion'
 ): Promise<LinearProject[]> {
   console.log(chalk.bold.yellow('\n📋 Step 3: Select Projects to Track\n'));
 
@@ -140,6 +148,33 @@ async function stepSelectProjects(
     return [];
   }
 
+  // For basic-memory, projects are optional (auto-discovery is available)
+  if (storageBackend === 'basic-memory') {
+    console.log(chalk.white('Project configuration for basic-memory:\n'));
+    console.log(chalk.gray('  • Auto-discovery: Projects are discovered on-demand from Linear'));
+    console.log(chalk.gray('  • Pre-configuration: Optionally pre-configure project paths\n'));
+
+    const { mode } = await inquirer.prompt<{ mode: 'auto' | 'manual' }>([
+      {
+        type: 'list',
+        name: 'mode',
+        message: 'How would you like to configure projects?',
+        choices: [
+          { name: 'Auto-discovery (recommended - zero configuration)', value: 'auto' },
+          { name: 'Pre-configure projects manually', value: 'manual' },
+        ],
+        default: 'auto',
+      },
+    ]);
+
+    if (mode === 'auto') {
+      console.log(chalk.green('\n✓ Projects will be auto-discovered on first use'));
+      console.log(chalk.gray(`  Available projects: ${teamProjects.map(p => p.name).join(', ')}\n`));
+      return [];
+    }
+  }
+
+  // For Notion or manual basic-memory configuration, select projects
   type ProjectSelectionAnswers = { selectedProjectIds: string[] };
 
   const { selectedProjectIds } = await inquirer.prompt<ProjectSelectionAnswers>([
@@ -162,10 +197,89 @@ async function stepSelectProjects(
 }
 
 /**
- * Step 4: Get Notion integration token
+ * Step 4: Choose storage backend
+ */
+async function stepChooseStorageBackend(): Promise<'basic-memory' | 'notion'> {
+  console.log(chalk.bold.yellow('\n📋 Step 4: Choose Knowledge Storage Backend\n'));
+
+  console.log(chalk.white('Select how to store lessons and decisions:\n'));
+  console.log(chalk.cyan('  Basic-Memory (recommended for getting started)'));
+  console.log(chalk.gray('    • Local markdown files'));
+  console.log(chalk.gray('    • Git-friendly and portable'));
+  console.log(chalk.gray('    • No external dependencies'));
+  console.log(chalk.gray('    • Quick setup (~2 minutes)\n'));
+  console.log(chalk.cyan('  Notion (for team collaboration)'));
+  console.log(chalk.gray('    • Collaborative knowledge base'));
+  console.log(chalk.gray('    • Rich formatting and databases'));
+  console.log(chalk.gray('    • Requires Notion account and setup'));
+  console.log(chalk.gray('    • Setup time: ~10 minutes\n'));
+
+  const { storageBackend } = await inquirer.prompt<{ storageBackend: 'basic-memory' | 'notion' }>([
+    {
+      type: 'list',
+      name: 'storageBackend',
+      message: 'Select storage backend:',
+      choices: [
+        { name: 'Basic-Memory (local markdown files)', value: 'basic-memory' },
+        { name: 'Notion (collaborative databases)', value: 'notion' },
+      ],
+      default: 'basic-memory',
+    },
+  ]);
+
+  return storageBackend;
+}
+
+/**
+ * Step 5a: Configure basic-memory paths
+ */
+async function stepBasicMemoryPaths(): Promise<{ rootPath: string; globalPath: string }> {
+  console.log(chalk.bold.yellow('\n📋 Step 5: Configure Basic-Memory Storage\n'));
+
+  console.log(chalk.white('Specify where to store markdown files for lessons and decisions.\n'));
+
+  const { rootPath } = await inquirer.prompt<{ rootPath: string }>([
+    {
+      type: 'input',
+      name: 'rootPath',
+      message: 'Root path for knowledge storage:',
+      default: './.memory',
+      validate: (input: string) => {
+        if (!input || input.trim().length === 0) {
+          return 'Root path is required';
+        }
+        return true;
+      },
+    },
+  ]);
+
+  const { globalPath } = await inquirer.prompt<{ globalPath: string }>([
+    {
+      type: 'input',
+      name: 'globalPath',
+      message: 'Path for global (cross-project) knowledge:',
+      default: `${rootPath}/global`,
+      validate: (input: string) => {
+        if (!input || input.trim().length === 0) {
+          return 'Global path is required';
+        }
+        return true;
+      },
+    },
+  ]);
+
+  console.log(chalk.green('\n✓ Basic-memory will use local markdown files'));
+  console.log(chalk.gray(`  Root: ${rootPath}`));
+  console.log(chalk.gray(`  Global: ${globalPath}\n`));
+
+  return { rootPath: rootPath.trim(), globalPath: globalPath.trim() };
+}
+
+/**
+ * Step 5b: Get Notion integration token
  */
 async function stepNotionToken(): Promise<string> {
-  console.log(chalk.bold.yellow('\n📋 Step 4: Notion Configuration\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 5: Notion Configuration\n'));
 
   console.log(chalk.white('Create a Notion integration at:'));
   console.log(chalk.cyan('  https://www.notion.so/my-integrations\n'));
@@ -186,10 +300,10 @@ async function stepNotionToken(): Promise<string> {
 }
 
 /**
- * Step 5: Get Notion parent page ID
+ * Step 5c: Get Notion parent page ID
  */
 async function stepNotionParentPage(): Promise<string> {
-  console.log(chalk.bold.yellow('\n📋 Step 5: Notion Parent Page\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 6: Notion Parent Page\n'));
 
   console.log(chalk.white('Instructions:'));
   console.log(chalk.gray('  1. Create a page in Notion (e.g., "Task Manager")'));
@@ -217,10 +331,10 @@ async function stepNotionParentPage(): Promise<string> {
 }
 
 /**
- * Step 6: Ask about global databases
+ * Step 5d: Ask about global databases (Notion only)
  */
 async function stepGlobalDatabases(): Promise<boolean> {
-  console.log(chalk.bold.yellow('\n📋 Step 6: Global Databases\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 7: Global Databases\n'));
 
   console.log(chalk.white('Global databases store cross-project knowledge.'));
   console.log(chalk.gray('  - Useful for lessons that apply to multiple projects'));
@@ -239,7 +353,7 @@ async function stepGlobalDatabases(): Promise<boolean> {
 }
 
 /**
- * Step 7: Create Notion databases
+ * Step 5e: Create Notion databases
  */
 async function stepCreateDatabases(
   notionToken: string,
@@ -317,10 +431,10 @@ async function stepCreateDatabases(
 }
 
 /**
- * Step 8: Configure uncertainty mode
+ * Step 6: Configure uncertainty mode
  */
 async function stepUncertaintyMode(): Promise<'off' | 'warn' | 'block'> {
-  console.log(chalk.bold.yellow('\n📋 Step 8: Uncertainty Resolution Mode\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 6: Uncertainty Resolution Mode\n'));
 
   console.log(chalk.white('How should the system handle unresolved uncertainties?'));
   console.log(chalk.gray('  off   - Allow decomposition with unresolved uncertainties'));
@@ -345,56 +459,103 @@ async function stepUncertaintyMode(): Promise<'off' | 'warn' | 'block'> {
 }
 
 /**
- * Step 9: Generate .env file
+ * Step 7: Generate .env file
  */
 function stepGenerateEnv(state: WizardState): string {
-  console.log(chalk.bold.yellow('\n📋 Step 9: Generate Configuration\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 7: Generate Configuration\n'));
 
   const spinner = ora('Generating .env file...').start();
 
   try {
-    if (!state.linearApiKey || !state.linearTeamId || !state.notionApiKey) {
+    if (!state.linearApiKey || !state.linearTeamId) {
       throw new Error('Missing required configuration details');
     }
 
-    const config: SetupConfig = {
-      linear: {
-        apiKey: state.linearApiKey,
-        teamId: state.linearTeamId,
-        teamName: state.linearTeamName,
-      },
-      notion: {
-        apiKey: state.notionApiKey,
-        globalLessonsDbId: state.globalDatabases?.lessons.id,
-        globalLessonsDataSourceId: state.globalDatabases?.lessons.dataSourceId,
-        globalDecisionsDbId: state.globalDatabases?.decisions.id,
-        globalDecisionsDataSourceId: state.globalDatabases?.decisions.dataSourceId,
-      },
-      projects: state.selectedProjects.map((project) => ({
-        name: project.name,
-        linearProjectId: project.id,
-        notionLessonsDbId: state.projectDatabases[project.name].lessons.id,
-        notionLessonsDataSourceId: state.projectDatabases[project.name].lessons.dataSourceId,
-        notionDecisionsDbId: state.projectDatabases[project.name].decisions.id,
-        notionDecisionsDataSourceId: state.projectDatabases[project.name].decisions.dataSourceId,
-      })),
-      uncertaintyMode: state.uncertaintyMode,
-    };
+    if (state.storageBackend === 'basic-memory') {
+      // Basic-memory configuration
+      if (!state.basicMemoryRootPath || !state.basicMemoryGlobalPath) {
+        throw new Error('Missing basic-memory configuration');
+      }
 
-    const envContent = generateEnvContent(config);
-    const envPath = path.resolve('.env');
+      const config: SetupConfig = {
+        linear: {
+          apiKey: state.linearApiKey,
+          teamId: state.linearTeamId,
+          teamName: state.linearTeamName,
+        },
+        storageBackend: 'basic-memory',
+        basicMemory: {
+          rootPath: state.basicMemoryRootPath,
+          globalPath: state.basicMemoryGlobalPath,
+        },
+        projects: state.selectedProjects.map((project) => ({
+          name: project.name,
+          linearProjectId: project.id,
+          path: `${state.basicMemoryRootPath}/projects/${project.name}`,
+        })),
+        uncertaintyMode: state.uncertaintyMode,
+      };
 
-    // Check if .env exists
-    if (fs.existsSync(envPath)) {
-      const backupPath = `.env.backup.${Date.now()}`;
-      fs.copyFileSync(envPath, backupPath);
-      spinner.info(chalk.yellow(`Created backup: ${backupPath}`));
+      const envContent = generateEnvContent(config);
+      const envPath = path.resolve('.env');
+
+      // Check if .env exists
+      if (fs.existsSync(envPath)) {
+        const backupPath = `.env.backup.${Date.now()}`;
+        fs.copyFileSync(envPath, backupPath);
+        spinner.info(chalk.yellow(`Created backup: ${backupPath}`));
+      }
+
+      fs.writeFileSync(envPath, envContent, 'utf-8');
+      spinner.succeed(chalk.green('Generated .env file'));
+
+      return envPath;
+    } else {
+      // Notion configuration
+      if (!state.notionApiKey) {
+        throw new Error('Missing Notion API key');
+      }
+
+      const config: SetupConfig = {
+        linear: {
+          apiKey: state.linearApiKey,
+          teamId: state.linearTeamId,
+          teamName: state.linearTeamName,
+        },
+        storageBackend: 'notion',
+        notion: {
+          apiKey: state.notionApiKey,
+          globalLessonsDbId: state.globalDatabases?.lessons.id,
+          globalLessonsDataSourceId: state.globalDatabases?.lessons.dataSourceId,
+          globalDecisionsDbId: state.globalDatabases?.decisions.id,
+          globalDecisionsDataSourceId: state.globalDatabases?.decisions.dataSourceId,
+        },
+        projects: state.selectedProjects.map((project) => ({
+          name: project.name,
+          linearProjectId: project.id,
+          notionLessonsDbId: state.projectDatabases[project.name].lessons.id,
+          notionLessonsDataSourceId: state.projectDatabases[project.name].lessons.dataSourceId,
+          notionDecisionsDbId: state.projectDatabases[project.name].decisions.id,
+          notionDecisionsDataSourceId: state.projectDatabases[project.name].decisions.dataSourceId,
+        })),
+        uncertaintyMode: state.uncertaintyMode,
+      };
+
+      const envContent = generateEnvContent(config);
+      const envPath = path.resolve('.env');
+
+      // Check if .env exists
+      if (fs.existsSync(envPath)) {
+        const backupPath = `.env.backup.${Date.now()}`;
+        fs.copyFileSync(envPath, backupPath);
+        spinner.info(chalk.yellow(`Created backup: ${backupPath}`));
+      }
+
+      fs.writeFileSync(envPath, envContent, 'utf-8');
+      spinner.succeed(chalk.green('Generated .env file'));
+
+      return envPath;
     }
-
-    fs.writeFileSync(envPath, envContent, 'utf-8');
-    spinner.succeed(chalk.green('Generated .env file'));
-
-    return envPath;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     spinner.fail(chalk.red(`Failed to generate .env: ${message}`));
@@ -403,10 +564,10 @@ function stepGenerateEnv(state: WizardState): string {
 }
 
 /**
- * Step 10: Run validation
+ * Step 8: Run validation
  */
 async function stepValidate(envPath: string): Promise<boolean> {
-  console.log(chalk.bold.yellow('\n📋 Step 10: Validate Configuration\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 8: Validate Configuration\n'));
 
   const spinner = ora('Validating setup...').start();
 
@@ -445,10 +606,10 @@ async function stepValidate(envPath: string): Promise<boolean> {
 }
 
 /**
- * Step 11: Generate MCP config
+ * Step 9: Generate MCP config
  */
 function stepGenerateMCPConfig(envPath: string): string {
-  console.log(chalk.bold.yellow('\n📋 Step 11: Generate MCP Configuration\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 9: Generate MCP Configuration\n'));
 
   const spinner = ora('Generating mcp.json...').start();
 
@@ -481,10 +642,10 @@ function stepGenerateMCPConfig(envPath: string): string {
 }
 
 /**
- * Step 12: Run connection test
+ * Step 10: Run connection test
  */
 async function stepConnectionTest(envPath: string, projectName: string): Promise<void> {
-  console.log(chalk.bold.yellow('\n📋 Step 12: Test Connection\n'));
+  console.log(chalk.bold.yellow('\n📋 Step 10: Test Connection\n'));
 
   const { runTest } = await inquirer.prompt<{ runTest: boolean }>([
     {
@@ -532,30 +693,59 @@ function displaySummary(state: WizardState, envPath: string, mcpPath: string) {
 
   console.log(chalk.white.bold('Configuration Summary:\n'));
   console.log(chalk.gray(`  Linear Team: ${state.linearTeamName}`));
-  console.log(chalk.gray(`  Projects: ${state.selectedProjects.map((p) => p.name).join(', ')}`));
-  console.log(
-    chalk.gray(`  Global Databases: ${state.createGlobal ? 'Yes' : 'No'}`)
-  );
-  console.log(
-    chalk.gray(`  Uncertainty Mode: ${state.uncertaintyMode || 'warn'}`)
-  );
+
+  if (state.selectedProjects.length > 0) {
+    console.log(chalk.gray(`  Projects: ${state.selectedProjects.map((p) => p.name).join(', ')}`));
+  } else {
+    console.log(chalk.gray(`  Projects: Auto-discovery enabled (all Linear projects)`));
+  }
+
+  console.log(chalk.gray(`  Storage Backend: ${state.storageBackend}`));
+
+  if (state.storageBackend === 'basic-memory') {
+    console.log(chalk.gray(`  Root Path: ${state.basicMemoryRootPath}`));
+    console.log(chalk.gray(`  Global Path: ${state.basicMemoryGlobalPath}`));
+    if (state.selectedProjects.length === 0) {
+      console.log(chalk.gray(`  Project Discovery: Automatic (on first use)`));
+    }
+  } else {
+    console.log(chalk.gray(`  Global Databases: ${state.createGlobal ? 'Yes' : 'No'}`));
+  }
+
+  console.log(chalk.gray(`  Uncertainty Mode: ${state.uncertaintyMode || 'warn'}`));
 
   console.log(chalk.white.bold('\n\nGenerated Files:\n'));
   console.log(chalk.gray(`  .env file: ${envPath}`));
   console.log(chalk.gray(`  MCP config: ${mcpPath}`));
 
-  console.log(chalk.white.bold('\n\nNotion Databases:\n'));
-  state.selectedProjects.forEach((project) => {
-    const dbs = state.projectDatabases[project.name];
-    console.log(chalk.cyan(`  ${project.name}:`));
-    console.log(chalk.gray(`    Lessons: ${dbs.lessons.url}`));
-    console.log(chalk.gray(`    Decisions: ${dbs.decisions.url}`));
-  });
+  if (state.storageBackend === 'notion' && Object.keys(state.projectDatabases).length > 0) {
+    console.log(chalk.white.bold('\n\nNotion Databases:\n'));
+    state.selectedProjects.forEach((project) => {
+      const dbs = state.projectDatabases[project.name];
+      if (dbs) {
+        console.log(chalk.cyan(`  ${project.name}:`));
+        console.log(chalk.gray(`    Lessons: ${dbs.lessons.url}`));
+        console.log(chalk.gray(`    Decisions: ${dbs.decisions.url}`));
+      }
+    });
 
-  if (state.globalDatabases) {
-    console.log(chalk.cyan('  Global:'));
-    console.log(chalk.gray(`    Lessons: ${state.globalDatabases.lessons.url}`));
-    console.log(chalk.gray(`    Decisions: ${state.globalDatabases.decisions.url}`));
+    if (state.globalDatabases) {
+      console.log(chalk.cyan('  Global:'));
+      console.log(chalk.gray(`    Lessons: ${state.globalDatabases.lessons.url}`));
+      console.log(chalk.gray(`    Decisions: ${state.globalDatabases.decisions.url}`));
+    }
+  } else if (state.storageBackend === 'basic-memory') {
+    console.log(chalk.white.bold('\n\nKnowledge Storage:\n'));
+    console.log(chalk.gray(`  Local markdown files will be created in:`));
+    console.log(chalk.cyan(`    ${state.basicMemoryRootPath}/`));
+    if (state.selectedProjects.length > 0) {
+      state.selectedProjects.forEach((project) => {
+        console.log(chalk.gray(`      projects/${project.name}/`));
+      });
+    } else {
+      console.log(chalk.gray(`      projects/{project-name}/ (created on first use)`));
+    }
+    console.log(chalk.gray(`      global/`));
   }
 
   console.log(chalk.white.bold('\n\nNext Steps:\n'));
@@ -572,7 +762,9 @@ function displaySummary(state: WizardState, envPath: string, mcpPath: string) {
   console.log(chalk.white.bold('Available Commands:\n'));
   console.log(chalk.cyan('  pnpm run setup:validate') + chalk.gray('     - Validate configuration'));
   console.log(chalk.cyan('  pnpm run setup:test') + chalk.gray('         - Test connection'));
-  console.log(chalk.cyan('  pnpm run setup:update-schema') + chalk.gray(' - Update database schemas'));
+  if (state.storageBackend === 'notion') {
+    console.log(chalk.cyan('  pnpm run setup:update-schema') + chalk.gray(' - Update database schemas'));
+  }
   console.log(chalk.cyan('  pnpm run build') + chalk.gray('              - Build the project'));
   console.log(chalk.cyan('  pnpm start') + chalk.gray('                - Start MCP server\n'));
 
@@ -587,6 +779,7 @@ async function runWizard() {
     selectedProjects: [],
     createGlobal: false,
     projectDatabases: {},
+    storageBackend: 'basic-memory', // Default
   };
 
   try {
@@ -602,45 +795,57 @@ async function runWizard() {
     state.linearTeamId = team.id;
     state.linearTeamName = team.name;
 
-    // Step 3: Select projects
-    const selectedProjects = await stepSelectProjects(projects, team.id);
+    // Step 3: Choose storage backend (moved before project selection)
+    state.storageBackend = await stepChooseStorageBackend();
+
+    // Step 4: Select projects (now aware of storage backend)
+    const selectedProjects = await stepSelectProjects(projects, team.id, state.storageBackend);
     state.selectedProjects = selectedProjects;
 
-    if (selectedProjects.length === 0) {
-      console.log(chalk.yellow('\nNo projects selected. Exiting setup.\n'));
+    // For Notion, we require at least one project (need to create databases)
+    if (state.storageBackend === 'notion' && selectedProjects.length === 0) {
+      console.log(chalk.yellow('\nNotion requires at least one project. Exiting setup.\n'));
       process.exit(0);
     }
 
-    // Step 4: Notion token
-    state.notionApiKey = await stepNotionToken();
+    // Conditional flow based on storage backend
+    if (state.storageBackend === 'basic-memory') {
+      // Step 5a: Configure basic-memory paths
+      const { rootPath, globalPath } = await stepBasicMemoryPaths();
+      state.basicMemoryRootPath = rootPath;
+      state.basicMemoryGlobalPath = globalPath;
+    } else {
+      // Step 5b: Notion token
+      state.notionApiKey = await stepNotionToken();
 
-    // Step 5: Notion parent page
-    state.notionParentPageId = await stepNotionParentPage();
+      // Step 5c: Notion parent page
+      state.notionParentPageId = await stepNotionParentPage();
 
-    // Step 6: Global databases
-    state.createGlobal = await stepGlobalDatabases();
+      // Step 5d: Global databases
+      state.createGlobal = await stepGlobalDatabases();
 
-    // Step 7: Create databases
-    if (!state.notionApiKey || !state.notionParentPageId) {
-      throw new Error('Notion configuration is incomplete');
+      // Step 5e: Create databases
+      if (!state.notionApiKey || !state.notionParentPageId) {
+        throw new Error('Notion configuration is incomplete');
+      }
+
+      const { projectDatabases, globalDatabases } = await stepCreateDatabases(
+        state.notionApiKey,
+        state.notionParentPageId,
+        selectedProjects,
+        state.createGlobal
+      );
+      state.projectDatabases = projectDatabases;
+      state.globalDatabases = globalDatabases;
     }
 
-    const { projectDatabases, globalDatabases } = await stepCreateDatabases(
-      state.notionApiKey,
-      state.notionParentPageId,
-      selectedProjects,
-      state.createGlobal
-    );
-    state.projectDatabases = projectDatabases;
-    state.globalDatabases = globalDatabases;
-
-    // Step 8: Uncertainty mode
+    // Step 6: Uncertainty mode
     state.uncertaintyMode = await stepUncertaintyMode();
 
-    // Step 9: Generate .env
+    // Step 7: Generate .env
     const envPath = stepGenerateEnv(state);
 
-    // Step 10: Validate
+    // Step 8: Validate
     const valid = await stepValidate(envPath);
 
     if (!valid) {
@@ -648,10 +853,10 @@ async function runWizard() {
       process.exit(1);
     }
 
-    // Step 11: Generate MCP config
+    // Step 9: Generate MCP config
     const mcpPath = stepGenerateMCPConfig(envPath);
 
-    // Step 12: Connection test
+    // Step 10: Connection test
     await stepConnectionTest(envPath, selectedProjects[0].name);
 
     // Summary

@@ -8,7 +8,12 @@ export interface SetupConfig {
     teamId: string;
     teamName?: string;
   };
-  notion: {
+  storageBackend?: 'basic-memory' | 'notion';
+  basicMemory?: {
+    rootPath: string;
+    globalPath: string;
+  };
+  notion?: {
     apiKey: string;
     globalLessonsDbId?: string;
     globalDecisionsDbId?: string;
@@ -22,10 +27,13 @@ export interface SetupConfig {
 export interface ProjectConfig {
   name: string;
   linearProjectId: string;
-  notionLessonsDbId: string;
-  notionDecisionsDbId: string;
-  notionLessonsDataSourceId: string;
-  notionDecisionsDataSourceId: string;
+  // Basic-memory fields
+  path?: string;
+  // Notion fields
+  notionLessonsDbId?: string;
+  notionDecisionsDbId?: string;
+  notionLessonsDataSourceId?: string;
+  notionDecisionsDataSourceId?: string;
 }
 
 export interface LinearTeam {

@@ -99,6 +99,13 @@ export class LinearService {
     this.projects = projects;
   }
 
+  /**
+   * Get the underlying Linear client (for advanced use cases like project discovery)
+   */
+  getLinearClient(): LinearClient {
+    return this.client;
+  }
+
   needsDecomposition(effort: number | undefined): boolean {
     return typeof effort === 'number' && effort > 3;
   }

@@ -64,13 +64,25 @@ function validateEnvFile(envPath: string): {
 
   const env: Record<string, string> = result.parsed ?? {};
 
-  // Validate required fields
-  const required = ['LINEAR_API_KEY', 'LINEAR_TEAM_ID', 'NOTION_API_KEY'];
+  // Validate required fields (only Linear is required, Notion is optional for basic-memory)
+  const required = ['LINEAR_API_KEY', 'LINEAR_TEAM_ID'];
   required.forEach((key) => {
     if (!env[key]) {
       errors.push(`Missing required field: ${key}`);
     }
   });
+
+  // Check storage backend
+  const storageBackend = env.STORAGE_BACKEND || 'basic-memory';
+  if (storageBackend === 'notion' && !env.NOTION_API_KEY) {
+    errors.push('NOTION_API_KEY is required when STORAGE_BACKEND is "notion"');
+  }
+
+  if (storageBackend === 'basic-memory') {
+    if (!env.BASIC_MEMORY_ROOT_PATH) {
+      errors.push('BASIC_MEMORY_ROOT_PATH is required when STORAGE_BACKEND is "basic-memory"');
+    }
+  }
 
   // Validate Linear API key format
   if (env.LINEAR_API_KEY) {
@@ -458,11 +470,20 @@ function validateMCPConfig(mcpPath: string): {
       errors.push('MCP server env missing');
     } else {
       const envRecord = server.env;
-      const required = ['LINEAR_API_KEY', 'LINEAR_TEAM_ID', 'NOTION_API_KEY'] as const;
+      const required = ['LINEAR_API_KEY', 'LINEAR_TEAM_ID'] as const;
       for (const key of required) {
         if (typeof envRecord[key] !== 'string' || envRecord[key] === '') {
           errors.push(`MCP server env missing ${key}`);
         }
+      }
+
+      // Check storage backend and required fields
+      const storageBackend = typeof envRecord.STORAGE_BACKEND === 'string' ? envRecord.STORAGE_BACKEND : 'basic-memory';
+      if (storageBackend === 'notion' && (typeof envRecord.NOTION_API_KEY !== 'string' || envRecord.NOTION_API_KEY === '')) {
+        errors.push('MCP server env missing NOTION_API_KEY (required for STORAGE_BACKEND=notion)');
+      }
+      if (storageBackend === 'basic-memory' && (typeof envRecord.BASIC_MEMORY_ROOT_PATH !== 'string' || envRecord.BASIC_MEMORY_ROOT_PATH === '')) {
+        warnings.push('MCP server env missing BASIC_MEMORY_ROOT_PATH (recommended for STORAGE_BACKEND=basic-memory)');
       }
     }
 
@@ -507,20 +528,38 @@ async function runValidations(envPath: string, mcpPath?: string): Promise<Valida
 
   log.step('Step 3: Validate Notion API');
   const notionApiKey = envValidation.env.NOTION_API_KEY;
+  const storageBackend = envValidation.env.STORAGE_BACKEND || 'basic-memory';
+
   if (notionApiKey) {
     results.notion = await validateNotionAPI(notionApiKey);
+  } else if (storageBackend === 'basic-memory') {
+    // Skip Notion validation for basic-memory
+    results.notion = { valid: true, errors: [], warnings: ['Using basic-memory backend - Notion validation skipped'] };
+    log.info('Using basic-memory backend - skipping Notion validation');
   }
 
   const projectMappingsJson = envValidation.env.PROJECT_MAPPINGS;
-  if (results.linear.valid && results.notion.valid && projectMappingsJson) {
+  // Validate projects if Linear is valid (Notion is optional)
+  if (results.linear.valid && projectMappingsJson) {
     log.step('Step 4: Validate Project Mappings');
     const linearClient = new LinearClient({ apiKey: linearApiKey });
-    const notionClient = new NotionClient({ auth: notionApiKey });
-    results.projects = await validateProjects(
-      linearClient,
-      notionClient,
-      projectMappingsJson
-    );
+    const notionClient = notionApiKey ? new NotionClient({ auth: notionApiKey }) : null;
+
+    // Only pass notionClient if it exists
+    if (notionClient) {
+      results.projects = await validateProjects(
+        linearClient,
+        notionClient,
+        projectMappingsJson
+      );
+    } else {
+      // For basic-memory, just validate Linear projects
+      results.projects = await validateProjects(
+        linearClient,
+        new NotionClient({ auth: 'dummy' }), // Won't be used
+        projectMappingsJson
+      );
+    }
   }
 
   if (mcpPath) {

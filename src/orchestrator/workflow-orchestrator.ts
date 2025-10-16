@@ -15,6 +15,7 @@ import { isEntireTreeDone } from '../domain/tasks/task-tree.js';
 import { LinearService } from '../integrations/linear/service.js';
 import { NotionService } from '../integrations/notion/service.js';
 import { BasicMemoryService } from '../integrations/basic-memory/service.js';
+import { ProjectDiscovery } from '../config/project-discovery.js';
 import type { KnowledgeStorageService, SearchResult } from '../integrations/storage-service.js';
 import type {
   Config,
@@ -38,8 +39,10 @@ export class WorkflowOrchestrator {
   private linear: LinearService;
   private knowledge: KnowledgeStorageService;
   private projectResolver: ProjectResolver;
+  private projectDiscovery?: ProjectDiscovery;
   private uncertaintyPolicy: UncertaintyPolicy;
   private logger: OrchestratorLogger;
+  private config: Config;
 
   readonly uncertaintyMode: UncertaintyResolutionMode;
 
@@ -52,6 +55,7 @@ export class WorkflowOrchestrator {
       logger?: OrchestratorLogger;
     } = {}
   ) {
+    this.config = config;
     this.logger = options.logger ?? console;
     this.linear =
       options.linearService ??
@@ -61,7 +65,7 @@ export class WorkflowOrchestrator {
     if (options.knowledgeService) {
       this.knowledge = options.knowledgeService;
     } else {
-      const storageBackend = config.storageBackend || 'notion';
+      const storageBackend = config.storageBackend || 'basic-memory';
 
       if (storageBackend === 'basic-memory') {
         if (!config.basicMemory) {
@@ -70,7 +74,7 @@ export class WorkflowOrchestrator {
 
         // Extract basic-memory project mappings
         const bmProjects: Record<string, BasicMemoryProjectMapping> = {};
-        for (const [key, mapping] of Object.entries(config.projects)) {
+        for (const [key, mapping] of Object.entries(config.projects ?? {})) {
           if ('path' in mapping) {
             bmProjects[key] = mapping;
           }
@@ -82,6 +86,14 @@ export class WorkflowOrchestrator {
           projects: bmProjects,
         });
         this.logger.log('📝 Using basic-memory for knowledge storage');
+
+        // Initialize project discovery for auto-discovery
+        this.projectDiscovery = new ProjectDiscovery(
+          config.basicMemory.rootPath,
+          this.linear.getLinearClient(),
+          { logger: this.logger }
+        );
+        this.logger.log('✨ Project auto-discovery enabled');
       } else {
         // Default to Notion
         if (!config.notion) {
@@ -90,7 +102,7 @@ export class WorkflowOrchestrator {
 
         // Extract notion project mappings
         const notionProjects: Record<string, NotionProjectMapping> = {};
-        for (const [key, mapping] of Object.entries(config.projects)) {
+        for (const [key, mapping] of Object.entries(config.projects ?? {})) {
           if ('notionLessonsDbId' in mapping) {
             notionProjects[key] = mapping;
           }

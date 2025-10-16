@@ -21,55 +21,102 @@ export function generateEnvContent(config: SetupConfig): string {
     `LINEAR_API_KEY=${config.linear.apiKey}`,
     `LINEAR_TEAM_ID=${config.linear.teamId}`,
     '',
-    '# Notion Configuration',
-    `NOTION_API_KEY=${config.notion.apiKey}`,
   ];
 
-  // Global databases (optional)
-  if (config.notion.globalLessonsDbId || config.notion.globalDecisionsDbId) {
+  // Storage backend
+  const backend = config.storageBackend || 'basic-memory';
+  lines.push('# Storage Backend');
+  lines.push(`STORAGE_BACKEND=${backend}`);
+  lines.push('');
+
+  if (backend === 'basic-memory' && config.basicMemory) {
+    // Basic-memory configuration
+    lines.push('# Basic Memory Configuration');
+    lines.push(`BASIC_MEMORY_ROOT_PATH=${config.basicMemory.rootPath}`);
+    lines.push(`BASIC_MEMORY_GLOBAL_PATH=${config.basicMemory.globalPath}`);
     lines.push('');
-    lines.push('# Global Databases (optional)');
-    if (config.notion.globalLessonsDbId) {
-      lines.push(`NOTION_GLOBAL_LESSONS_DB_ID=${config.notion.globalLessonsDbId}`);
-      if (config.notion.globalLessonsDataSourceId) {
-        lines.push(`NOTION_GLOBAL_LESSONS_DATA_SOURCE_ID=${config.notion.globalLessonsDataSourceId}`);
+
+    // Project mappings for basic-memory
+    if (config.projects.length > 0) {
+      lines.push('# Project Mappings (optional - see auto-discovery below)');
+      lines.push('# Format: {"project-name": {"linearProjectId": "uuid", "path": "./path"}}');
+
+      const mappings: Record<string, { linearProjectId: string; path: string }> = {};
+      config.projects.forEach((project) => {
+        if (project.path) {
+          mappings[project.name] = {
+            linearProjectId: project.linearProjectId,
+            path: project.path,
+          };
+        }
+      });
+
+      lines.push(`PROJECT_MAPPINGS=${JSON.stringify(mappings)}`);
+    } else {
+      lines.push('# Project Mappings (using auto-discovery)');
+      lines.push('# Projects are automatically discovered from Linear on first use.');
+      lines.push('# Storage path: {BASIC_MEMORY_ROOT_PATH}/projects/{sanitized-project-name}');
+      lines.push('# To pre-configure projects manually, add PROJECT_MAPPINGS here.');
+      lines.push('# PROJECT_MAPPINGS={}');
+    }
+  } else if (backend === 'notion' && config.notion) {
+    // Notion configuration
+    lines.push('# Notion Configuration');
+    lines.push(`NOTION_API_KEY=${config.notion.apiKey}`);
+
+    // Global databases (optional)
+    if (config.notion.globalLessonsDbId || config.notion.globalDecisionsDbId) {
+      lines.push('');
+      lines.push('# Global Databases (optional)');
+      if (config.notion.globalLessonsDbId) {
+        lines.push(`NOTION_GLOBAL_LESSONS_DB_ID=${config.notion.globalLessonsDbId}`);
+        if (config.notion.globalLessonsDataSourceId) {
+          lines.push(`NOTION_GLOBAL_LESSONS_DATA_SOURCE_ID=${config.notion.globalLessonsDataSourceId}`);
+        }
+      }
+      if (config.notion.globalDecisionsDbId) {
+        lines.push(`NOTION_GLOBAL_DECISIONS_DB_ID=${config.notion.globalDecisionsDbId}`);
+        if (config.notion.globalDecisionsDataSourceId) {
+          lines.push(`NOTION_GLOBAL_DECISIONS_DATA_SOURCE_ID=${config.notion.globalDecisionsDataSourceId}`);
+        }
       }
     }
-    if (config.notion.globalDecisionsDbId) {
-      lines.push(`NOTION_GLOBAL_DECISIONS_DB_ID=${config.notion.globalDecisionsDbId}`);
-      if (config.notion.globalDecisionsDataSourceId) {
-        lines.push(`NOTION_GLOBAL_DECISIONS_DATA_SOURCE_ID=${config.notion.globalDecisionsDataSourceId}`);
-      }
+
+    // Project mappings for notion
+    if (config.projects.length > 0) {
+      lines.push('');
+      lines.push('# Project Mappings');
+      lines.push('# Format: {"project-name": {"linearProjectId": "uuid", "notionLessonsDbId": "uuid", "notionLessonsDataSourceId": "uuid", "notionDecisionsDbId": "uuid", "notionDecisionsDataSourceId": "uuid"}}');
+
+      const mappings: Record<
+        string,
+        {
+          linearProjectId: string;
+          notionLessonsDbId: string;
+          notionLessonsDataSourceId: string;
+          notionDecisionsDbId: string;
+          notionDecisionsDataSourceId: string;
+        }
+      > = {};
+      config.projects.forEach((project) => {
+        if (
+          project.notionLessonsDbId &&
+          project.notionDecisionsDbId &&
+          project.notionLessonsDataSourceId &&
+          project.notionDecisionsDataSourceId
+        ) {
+          mappings[project.name] = {
+            linearProjectId: project.linearProjectId,
+            notionLessonsDbId: project.notionLessonsDbId,
+            notionLessonsDataSourceId: project.notionLessonsDataSourceId,
+            notionDecisionsDbId: project.notionDecisionsDbId,
+            notionDecisionsDataSourceId: project.notionDecisionsDataSourceId,
+          };
+        }
+      });
+
+      lines.push(`PROJECT_MAPPINGS=${JSON.stringify(mappings)}`);
     }
-  }
-
-  // Project mappings
-  if (config.projects.length > 0) {
-    lines.push('');
-    lines.push('# Project Mappings');
-    lines.push('# Format: {"project-name": {"linearProjectId": "uuid", "notionLessonsDbId": "uuid", "notionLessonsDataSourceId": "uuid", "notionDecisionsDbId": "uuid", "notionDecisionsDataSourceId": "uuid"}}');
-
-    const mappings: Record<
-      string,
-      {
-        linearProjectId: string;
-        notionLessonsDbId: string;
-        notionLessonsDataSourceId: string;
-        notionDecisionsDbId: string;
-        notionDecisionsDataSourceId: string;
-      }
-    > = {};
-    config.projects.forEach((project) => {
-      mappings[project.name] = {
-        linearProjectId: project.linearProjectId,
-        notionLessonsDbId: project.notionLessonsDbId,
-        notionLessonsDataSourceId: project.notionLessonsDataSourceId,
-        notionDecisionsDbId: project.notionDecisionsDbId,
-        notionDecisionsDataSourceId: project.notionDecisionsDataSourceId,
-      };
-    });
-
-    lines.push(`PROJECT_MAPPINGS=${JSON.stringify(mappings)}`);
   }
 
   // Uncertainty mode (optional)

@@ -366,7 +366,7 @@ export const ConfigSchema = z
       })
       .strict(),
     // Storage backend selection
-    storageBackend: StorageBackendSchema.optional().default('notion'),
+    storageBackend: StorageBackendSchema.optional().default('basic-memory'),
     // Notion configuration (when storageBackend = 'notion')
     notion: z
       .object({
@@ -386,7 +386,8 @@ export const ConfigSchema = z
       })
       .strict()
       .optional(),
-    projects: ProjectsConfigSchema,
+    // Project mappings (optional for basic-memory with auto-discovery)
+    projects: ProjectsConfigSchema.optional().default({}),
     defaultProject: z.string().trim().optional(),
   })
   .strict();
