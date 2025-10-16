@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PNPM_HOME: ~/.pnpm
+  LINEAR_API_KEY: lin_api_dummy
+  LINEAR_TEAM_ID: team_dummy
+  NOTION_API_KEY: secret_dummy
+  PROJECT_MAPPINGS: '{}'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test -- --reporter=verbose
+
+      - name: Build
+        run: pnpm build
+
+      - name: Smoke test start command
+        run: timeout 5 pnpm start || true

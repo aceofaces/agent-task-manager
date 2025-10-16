@@ -1,0 +1,62 @@
+{
+  "name": "agent-task-manager",
+  "version": "0.1.0",
+  "description": "Workflow orchestrator MCP server wrapping Linear and Notion with task management semantics",
+  "packageManager": "pnpm@10.18.3",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsc && node dist/index.js",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "setup:discover-linear": "pnpm run build && node dist/setup/discover-linear.js",
+    "setup:create-notion-dbs": "pnpm run build && node dist/setup/create-notion-dbs.js",
+    "setup:generate-env": "pnpm run build && node dist/setup/generate-env.js --template --output=.env.template",
+    "setup:generate-mcp-config": "pnpm run build && node dist/setup/generate-mcp-config.js",
+    "setup:validate": "pnpm run build && node dist/setup/validate-setup.js",
+    "setup:test": "pnpm run build && node dist/setup/test-connection.js",
+    "setup:update-schema": "pnpm run build && node dist/setup/update-schema.js",
+    "setup": "pnpm run build && node dist/setup/setup-wizard.js",
+    "prepare": "husky install",
+    "verify:start": "node scripts/verify-start.mjs",
+    "precommit": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build && pnpm run verify:start"
+  },
+  "keywords": [
+    "mcp",
+    "linear",
+    "notion",
+    "task-management",
+    "workflow"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@linear/sdk": "^60.0.0",
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@notionhq/client": "^5.2.0",
+    "chalk": "^5.6.2",
+    "dotenv": "^17.2.3",
+    "inquirer": "^12.10.0",
+    "ora": "^9.0.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.7.2",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

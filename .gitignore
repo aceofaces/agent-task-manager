@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+pnpm-debug.log
+vitest.out
+vitest.json
+test.out
+test.err
+*.tsbuildinfo
+.pnpm-store
+dev_docs/
+.mcp.json
+.memory/
